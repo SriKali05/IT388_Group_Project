@@ -71,3 +71,38 @@ Not done yet / ideas:
 - Faster energy (only recount the residues that moved) if energy time
   limits us.
 - Replica exchange (ref [1]) as the stretch goal for the long proteins.
+
+## 2026-11-12 (Srinath): MPI and hybrid versions
+
+- Merged main into `srinath-mpi-skeleton`. James's files were uploaded to the
+  repo root, so I moved them into `src/` and dropped the root copies of
+  `mpi.c` and `proteins.txt` (same as `data/proteins.txt`). Layout now matches
+  the plan: `src/` for code, `data/proteins.txt` for input.
+- `src/mpi.c`: deleted my copy of `parse_proteins()` (it's in `folding.c` now).
+  Seeds switched to `i * num_searches + s + 1`. #searches and #steps are now
+  command line args instead of #defines.
+  `mpirun -n <#procs> ./mpi <#searches> <#steps> [file]`
+- `src/hybrid.c`: MPI across proteins + James's OpenMP loop across searches.
+  `mpirun -n <#procs> ./hybrid <#threads> <#searches> <#steps> [file]`
+- Proteins go to ranks round robin (protein i -> rank i % nprocs) instead of
+  blocks. The file is sorted short to long, so blocks put S60 and S64 on the
+  same rank. With 4 ranks the compute time per rank was 0.10 0.10 0.15 0.18 s.
+- Each rank checks its own best folds with `check_fold()` (only that rank has
+  the coords). Rank 0 gets energies/valid flags with MPI_Reduce(MIN) and the
+  time breakdown with MPI_Reduce(SUM), so no coords are sent.
+- Both print: total time, moves/energy time, communication time on rank 0
+  (includes waiting for the slowest rank), compute time per rank and a load
+  imbalance number (slowest rank / average rank) for the results slides.
+
+Checks (Ubuntu 24.04 container, gcc 13 + OpenMPI; prototyping only, not Expanse):
+
+- All four programs build clean with `-Wall -Wextra`.
+- 40 x 5000: `mpi` on 3 ranks and `hybrid` on 1x1, 4x2 and 10x2 all give
+  exactly the same best energies as `sequential`, all folds valid.
+
+Limits to talk about in the presentation:
+
+- Only 8 proteins, so MPI can use at most 8 ranks. Extra ranks sit idle
+  (the program prints a note). More cores have to come from threads.
+- The run time is set by the rank that gets S64. Even round robin can't fix
+  that, the longest protein is a floor on the time.
