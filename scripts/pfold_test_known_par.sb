@@ -1,0 +1,98 @@
+#!/bin/bash
+#SBATCH --job-name="pfold_test_known_par"
+#SBATCH --output="results/slurm/pfold_test_known_par.%j.%N.txt"
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --account=isu103
+#SBATCH --export=ALL
+#SBATCH -t 00:15:00
+
+# TEST on the proteins that have published best energies (data/proteins_known.txt):
+# OpenMP, MPI and hybrid on 8 cores. The sequential version is run first as the reference.
+# At the end it prints PASS or FAIL for each parallel version: PASS means the version found
+# exactly the same best energy as the sequential version for every protein.
+#
+# Before submitting: compile into bin/ and make the results folders (commands are in the README).
+# Submit from the project folder:   sbatch scripts/pfold_test_known_par.sb
+#
+# Output:  results/known_test/known_*.out
+# (These results are kept apart from the 64-protein runs, which go to results/raw/.)
+# If srun gives a PMI error, replace "srun --mpi=pmi2 -n R --cpus-per-task=T --cpu-bind=cores"
+# with "mpirun -np R --map-by slot:PE=T --bind-to core".
+
+module purge
+module load slurm
+module load cpu/0.17.3b
+module load gcc/10.2.0
+module load openmpi/4.1.3
+
+# go to the folder where sbatch was run (the project folder); "." means the current folder
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+#settings
+DATA=data/proteins_known.txt
+OUT=results/known_test
+SEARCHES=32
+STEPS=20000
+
+#stop early if the setup was not done
+if [ ! -x bin/sequential ]; then
+    echo "bin/sequential is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -x bin/openmp ]; then
+    echo "bin/openmp is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -x bin/mpi ]; then
+    echo "bin/mpi is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -x bin/hybrid ]; then
+    echo "bin/hybrid is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -d "$OUT" ]; then
+    echo "$OUT is missing: make the results folders first (see the README)"
+    exit 1
+fi
+
+# keep each OpenMP thread on its own core
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+
+#run the sequential version
+echo "== sequential (reference) =="
+bin/sequential $SEARCHES $STEPS $DATA > "$OUT/known_par_ref_seq.out"
+
+# keep only: protein name, best energy, valid (yes/no), so two runs can be compared
+grep -E ' (yes|NO) ' "$OUT/known_par_ref_seq.out" | awk '{print $1, $3, $5}' > "$OUT/known_ref.txt"
+
+#run the parallel versions
+echo "== OpenMP, 4 threads =="
+bin/openmp 4 $SEARCHES $STEPS $DATA > "$OUT/known_openmp_t4.out"
+
+echo "== MPI, 4 ranks =="
+srun --mpi=pmi2 -n 4 --cpus-per-task=1 --cpu-bind=cores bin/mpi $SEARCHES $STEPS $DATA > "$OUT/known_mpi_r4.out"
+
+echo "== Hybrid, 2 ranks x 4 threads =="
+export OMP_NUM_THREADS=4
+srun --mpi=pmi2 -n 2 --cpus-per-task=4 --cpu-bind=cores bin/hybrid 4 $SEARCHES $STEPS $DATA > "$OUT/known_hybrid_r2_t4.out"
+
+#compare each parallel version with the reference
+echo ""
+echo "== Results =="
+for name in openmp_t4 mpi_r4 hybrid_r2_t4; do
+    grep -E ' (yes|NO) ' "$OUT/known_$name.out" | awk '{print $1, $3, $5}' > "$OUT/known_$name.txt"
+
+    if [ -s "$OUT/known_$name.txt" ] && diff -q "$OUT/known_ref.txt" "$OUT/known_$name.txt" > /dev/null \
+       && grep -q "Verification: PASSED" "$OUT/known_$name.out"; then
+        echo "PASS  $name   $(grep '^Total time' "$OUT/known_$name.out")"
+    else
+        echo "FAIL  $name   (see $OUT/known_$name.out)"
+    fi
+done
+echo "sequential: $(grep '^Total time' "$OUT/known_par_ref_seq.out")"

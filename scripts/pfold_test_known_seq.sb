@@ -1,0 +1,48 @@
+#!/bin/bash
+#SBATCH --job-name="pfold_test_known_seq"
+#SBATCH --output="results/slurm/pfold_test_known_seq.%j.%N.txt"
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+#SBATCH --account=isu103
+#SBATCH --export=ALL
+#SBATCH -t 00:10:00
+
+# TEST on the proteins that have published best energies (data/proteins_known.txt).
+# Runs the sequential version once. The table shows Best_E (what we found) next to Known_E
+# (the published best), which is the quality check.
+#
+# Before submitting: compile into bin/ and make the results folders (commands are in the README).
+# Submit from the project folder:   sbatch scripts/pfold_test_known_seq.sb
+#
+# Output:  results/known_test/known_seq.out
+# (These results are kept apart from the 64-protein runs, which go to results/raw/.)
+
+module purge
+module load slurm
+module load cpu/0.17.3b
+module load gcc/10.2.0
+
+# go to the folder where sbatch was run (the project folder); "." means the current folder
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+#settings
+DATA=data/proteins_known.txt
+OUT=results/known_test
+SEARCHES=32
+STEPS=20000
+
+#stop early if the setup was not done
+if [ ! -x bin/sequential ]; then
+    echo "bin/sequential is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -d "$OUT" ]; then
+    echo "$OUT is missing: make the results folders first (see the README)"
+    exit 1
+fi
+
+#run (tee shows the output on screen and saves it to a file)
+bin/sequential $SEARCHES $STEPS $DATA | tee "$OUT/known_seq.out"

@@ -17,6 +17,9 @@
  *  Compile:   mpicc -g -Wall -O2 -o mpi src/mpi.c src/folding.c -lm
  *  Run:       mpirun -n <#procs> ./mpi <#searches> <#steps> [protein file]
  *             (protein file defaults to data/proteins.txt)
+ * 
+ *  AI Usage ACK: In line with the project's AI use scale, Claude, a generative AI tool, was used at a level 4 (co-writer) to turn our 
+ *  parallel algorithm design into pseudocode. 
  * ---------------------------------------------------------------
  */
 
