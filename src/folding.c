@@ -22,6 +22,10 @@
  *             Every step depends on the one before it, so one search
  *             is sequential. The parallel versions run many searches
  *             at once, each with its own seed.
+ * 
+ *  AI Usage ACK: In line with the project's AI use scale, Claude, a generative AI tool, was used at a level 4 (co-writer) to turn our 
+ *             monte carlo search logic (fold_protein(const Protein *p, int num_steps, unsigned int seed))
+ *             and pullMove logic into pseudocode. 
  * ---------------------------------------------------------------
  */
 

@@ -14,6 +14,9 @@
  *  Compile:   gcc -g -Wall -O2 -o sequential src/sequential.c src/folding.c -lm
  *  Run:       ./sequential <#searches> <#steps> [protein file]
  *             (protein file defaults to data/proteins.txt)
+ * 
+ *  AI Usage ACK: In line with the project's AI use scale, Claude, a generative AI tool, was used at a level 4 (co-writer) to assist 
+ *  in writing the sequential part of our code.  
  * ---------------------------------------------------------------
  */
 

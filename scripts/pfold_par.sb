@@ -1,0 +1,189 @@
+#!/bin/bash
+#SBATCH --job-name="pfold_par"
+#SBATCH --output="results/slurm/pfold_par.%j.%N.txt"
+#SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=128
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=0
+#SBATCH --account=isu103
+#SBATCH --export=ALL
+#SBATCH -t 02:30:00
+
+# ALL PARALLEL EXPERIMENTS on the 64-protein file, on one full node (128 cores):
+#   OpenMP (threads), MPI (ranks), and hybrid (ranks x threads).
+#
+# Before submitting: compile into bin/ and make the results folders (commands are in the README).
+# Submit from the project folder:   sbatch scripts/pfold_par.sb
+#
+# Output:  results/raw/<version>_r<ranks>_t<threads>_n<steps>_s<searches>_rep<repeat>.out
+#          results/raw/energy_check.txt   (best energies compared with the sequential runs)
+#          results/raw/ENV_<jobid>.txt    (experimental setup)
+
+# AI Usage ACK: In line with the project's AI use scale, Claude, a generative AI tool, was used at a level 3
+# to brainstorm effecient ways to run our experiments
+# AI helped explain what grep and awk are and how/why they could be used to perform our runs
+
+module purge
+module load slurm
+module load cpu/0.17.3b
+module load gcc/10.2.0
+module load openmpi/4.1.3
+
+# go to the folder where sbatch was run (the project folder); "." means the current folder
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+#settings
+RAW=results/raw                  # folder for the output files
+DATA=data/proteins.txt           # the 64 proteins
+SEARCHES=128                     # searches per protein
+STEPS_LIST="10000 50000"         # steps per search = the two problem sizes
+REP_LIST="1 2 3"                 # 3 repeats of every run (timings vary a little)
+THREADS_LIST="1 2 4 8 16 32 64 128"      # OpenMP: thread counts
+RANKS_LIST="1 2 4 8 16 32 64 128"        # MPI: rank counts
+# hybrid: ranks x threads per rank (the product must be 128 or less)
+HYBRID_LIST="1x1 2x2 4x2 4x4 8x4 8x8 16x8 8x16 4x32 2x64 1x128"
+
+#stops early if the setup was not done
+if [ ! -x bin/openmp ]; then
+    echo "bin/openmp is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -x bin/mpi ]; then
+    echo "bin/mpi is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -x bin/hybrid ]; then
+    echo "bin/hybrid is missing: compile first (see the README)"
+    exit 1
+fi
+if [ ! -d "$RAW" ]; then
+    echo "$RAW is missing: make the results folders first (see the README)"
+    exit 1
+fi
+
+#save the computer details
+date > "$RAW/ENV_$SLURM_JOB_ID.txt"
+hostname >> "$RAW/ENV_$SLURM_JOB_ID.txt"
+lscpu | grep -E "Model name|^CPU\(s\)" >> "$RAW/ENV_$SLURM_JOB_ID.txt"
+
+# keep each OpenMP thread on its own core
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+
+#run everything
+# Repeat 1 of everything comes first, so if the job runs out of time there is still a complete set.
+for rep in $REP_LIST; do
+    for n in $STEPS_LIST; do
+
+        #OpenMP: 1 process with t threads
+        for t in $THREADS_LIST; do
+            out="$RAW/openmp_r1_t${t}_n${n}_s${SEARCHES}_rep${rep}.out"
+
+            # skip this run if it already finished
+            if grep -q "^Verification" "$out" 2>/dev/null; then
+                echo "skip $out (already done)"
+                continue
+            fi
+
+            echo "run  $out"
+            export OMP_NUM_THREADS=$t
+            bin/openmp $t $SEARCHES $n $DATA > "$out" 2>&1
+
+            if ! grep -q "Verification: PASSED" "$out"; then
+                echo "FAILED: $out" >> "$RAW/failures.log"
+            fi
+        done
+
+        #MPI: r ranks, 1 thread each
+        for r in $RANKS_LIST; do
+            out="$RAW/mpi_r${r}_t1_n${n}_s${SEARCHES}_rep${rep}.out"
+
+            if grep -q "^Verification" "$out" 2>/dev/null; then
+                echo "skip $out (already done)"
+                continue
+            fi
+
+            echo "run  $out"
+            export OMP_NUM_THREADS=1
+            srun --mpi=pmi2 -n $r --cpus-per-task=1 --cpu-bind=cores bin/mpi $SEARCHES $n $DATA > "$out" 2>&1
+
+            if ! grep -q "Verification: PASSED" "$out"; then
+                echo "FAILED: $out" >> "$RAW/failures.log"
+            fi
+        done
+
+        #Hybrid: r ranks, each with t threads
+        for config in $HYBRID_LIST; do
+            r=$(echo "$config" | cut -d'x' -f1)      # the number before the x = ranks
+            t=$(echo "$config" | cut -d'x' -f2)      # the number after the x = threads per rank
+            out="$RAW/hybrid_r${r}_t${t}_n${n}_s${SEARCHES}_rep${rep}.out"
+
+            if grep -q "^Verification" "$out" 2>/dev/null; then
+                echo "skip $out (already done)"
+                continue
+            fi
+
+            echo "run  $out"
+            export OMP_NUM_THREADS=$t
+            srun --mpi=pmi2 -n $r --cpus-per-task=$t --cpu-bind=cores bin/hybrid $t $SEARCHES $n $DATA > "$out" 2>&1
+
+            if ! grep -q "Verification: PASSED" "$out"; then
+                echo "FAILED: $out" >> "$RAW/failures.log"
+            fi
+        done
+
+    done
+done
+
+#check the parallel runs against the sequential runs
+# A parallel run is correct if it found the same best energy as the sequential run for every
+# protein. pfold_seq.sb and pfold_par.sb both do this check at the end, so whichever job
+# finishes last compares everything.
+OK=0            # parallel runs that match
+BAD=0           # parallel runs that differ
+NOTYET=0        # parallel runs with no finished sequential run to compare with
+echo -n "" > "$RAW/energy_check.txt"
+
+for n in $STEPS_LIST; do
+    seqfile="$RAW/seq_r1_t1_n${n}_s${SEARCHES}_rep1.out"
+
+    # keep only: protein name, best energy, valid (yes/no)
+    grep -E ' (yes|NO) ' "$seqfile" 2>/dev/null | awk '{print $1, $3, $5}' > "$RAW/tmp_ref.txt"
+
+    for f in "$RAW"/openmp_*_n${n}_s${SEARCHES}_rep*.out \
+             "$RAW"/mpi_*_n${n}_s${SEARCHES}_rep*.out \
+             "$RAW"/hybrid_*_n${n}_s${SEARCHES}_rep*.out; do
+
+        if [ ! -f "$f" ]; then continue; fi          # no files matched this pattern
+
+        if ! grep -q "^Verification" "$seqfile" 2>/dev/null; then
+            NOTYET=$((NOTYET + 1))
+            continue
+        fi
+
+        grep -E ' (yes|NO) ' "$f" | awk '{print $1, $3, $5}' > "$RAW/tmp_cur.txt"
+        if [ -s "$RAW/tmp_cur.txt" ] && diff -q "$RAW/tmp_ref.txt" "$RAW/tmp_cur.txt" > /dev/null; then
+            OK=$((OK + 1))
+        else
+            BAD=$((BAD + 1))
+            echo "MISMATCH: $f" >> "$RAW/energy_check.txt"
+        fi
+    done
+done
+rm -f "$RAW/tmp_ref.txt" "$RAW/tmp_cur.txt"
+
+echo "Energy check vs sequential: $OK runs match, $BAD mismatch, $NOTYET not compared yet (no sequential run to compare with)" >> "$RAW/energy_check.txt"
+cat "$RAW/energy_check.txt"
+
+#exit code: 0 = everything fine, 1 = a problem
+STATUS=0
+if [ -s "$RAW/failures.log" ]; then
+    echo "SOME RUNS FAILED, see $RAW/failures.log"
+    STATUS=1
+fi
+if [ $BAD -gt 0 ]; then
+    STATUS=1
+fi
+echo "done"
+exit $STATUS
