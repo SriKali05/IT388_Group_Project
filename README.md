@@ -37,25 +37,25 @@ The steps inside one search depend on each other, but **different searches are i
 **Initial File Structure & Purpose**:
 ====================================
 
->IT388_Group_Project/
->├── README.md
->├── NOTES.md
->├── src/
->│   ├── folding.h
->│   ├── folding.c
->│   ├── sequential.c
->│   ├── openmp.c
->│   ├── mpi.c
->│   └── hybrid.c
->├── data/
->│   ├── proteins.txt
->│   └── proteins_known.txt
->└── scripts/
->    ├── pfold_test_known_seq.sb
->    ├── pfold_test_known_par.sb
->    ├── pfold_seq.sb
->    ├── pfold_par.sb
->    └── collect_results.sh
+IT388_Group_Project/
+├── README.md
+├── NOTES.md
+├── src/
+│   ├── folding.h
+│   ├── folding.c
+│   ├── sequential.c
+│   ├── openmp.c
+│   ├── mpi.c
+│   └── hybrid.c
+├── data/
+│   ├── proteins.txt
+│   └── proteins_known.txt
+└── scripts/
+    ├── pfold_test_known_seq.sb
+    ├── pfold_test_known_par.sb
+    ├── pfold_seq.sb
+    ├── pfold_par.sb
+    └── collect_results.sh
 
 *Purpose*
 | File                               | Purpose        | 
@@ -134,12 +134,12 @@ bash scripts/collect_results.sh
 **Output Files Structure & Purpose**:
 =====================================
 
->results/
->├── slurm/           job logs (what each job printed)
->├── known_test/      quick tests on the known proteins
->├── raw/             one file per run of the full experiment, plus checks
->├── summary.csv      one row per run
->└── summary_avg.csv  one row per configuration
+results/
+├── slurm/           job logs (what each job printed)
+├── known_test/      quick tests on the known proteins
+├── raw/             one file per run of the full experiment, plus checks
+├── summary.csv      one row per run
+└── summary_avg.csv  one row per configuration
 
 *One Run File*: 
 >results/raw/<version>_r<ranks>_t<threads>_n<steps>_s<searches>_rep<repeat>.out
