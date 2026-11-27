@@ -28,12 +28,12 @@ The steps inside one search depend on each other, but **different searches are i
 
 **Contribution Breakdown:**
 ===========================
-
+```text
 *Srinath*: hybrid.c , mpi.c , folding.h
 *James*: folding.c , openmp.c , sequential.c , folding.h
 *Srida*: proteins_known.txt , proteins.txt , collect_results.sh , 4 jobscripts
 *Group*: final presentation , README.md
-
+```
 **Initial File Structure & Purpose**:
 ====================================
 ```text
@@ -101,7 +101,7 @@ R20_1  PHHPHHHHHPPHHPHPHPPH   0
 
 The experiments are run on **Expanse**, from the **project folder.**
 run the following commands in this order:
-
+```text
 1. *Setup*
 module purge; module load slurm cpu/0.17.3b gcc/10.2.0 openmpi/4.1.3
 mkdir -p bin results/raw results/known_test results/slurm
@@ -122,7 +122,7 @@ sbatch scripts/pfold_par.sb
 
 4. *After Both Jobs Finish, Build the Summary Files*
 bash scripts/collect_results.sh
-
+```
 *The Job Scripts:*
 | Script | Runs | Resources/Time Limit | Output Folder |
 |--------|------|----------------------|---------------|
