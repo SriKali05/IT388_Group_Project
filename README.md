@@ -28,12 +28,11 @@ The steps inside one search depend on each other, but **different searches are i
 
 **Contribution Breakdown:**
 ===========================
-```text
-*Srinath*: hybrid.c , mpi.c , folding.h
-*James*: folding.c , openmp.c , sequential.c , folding.h
-*Srida*: proteins_known.txt , proteins.txt , collect_results.sh , 4 jobscripts
-*Group*: final presentation , README.md
-```
+- **Srinath:** `hybrid.c`, `mpi.c`, `folding.h`
+- **James:** `folding.c`, `openmp.c`, `sequential.c`, `folding.h`
+- **Srida:** `proteins_known.txt`, `proteins.txt`, `collect_results.sh`, 4 job scripts
+- **Group:** Final presentation, `README.md`
+
 **Initial File Structure & Purpose**:
 ====================================
 ```text
@@ -101,28 +100,42 @@ R20_1  PHHPHHHHHPPHHPHPHPPH   0
 
 The experiments are run on **Expanse**, from the **project folder.**
 run the following commands in this order:
-```text
-1. *Setup*
-module purge; module load slurm cpu/0.17.3b gcc/10.2.0 openmpi/4.1.3
-mkdir -p bin results/raw results/known_test results/slurm
-gcc   -g -Wall -O2 -o bin/sequential src/sequential.c src/folding.c -lm
-gcc   -g -Wall -O2 -fopenmp -o bin/openmp src/openmp.c src/folding.c -lm
-mpicc -g -Wall -O2 -o bin/mpi src/mpi.c src/folding.c -lm
-mpicc -g -Wall -O2 -fopenmp -o bin/hybrid src/hybrid.c src/folding.c -lm
-ls bin        # should list: hybrid  mpi  openmp  sequential
 
-2. *Test the Known Proteins - run from the project folder*
-sbatch scripts/pfold_test_known_seq.sb
-sbatch scripts/pfold_test_known_par.sb
-cat results/slurm/pfold_test_known_par.*.txt     # want: PASS for openmp, mpi and hybrid. This tells us the parallel version found exactly the same best energy as the sequential version for every protein, and every fold passed the validity check.
+1. **Setup**
 
-3. *Run the Full Experiment on the 64 Proteins*
-sbatch scripts/pfold_seq.sb
-sbatch scripts/pfold_par.sb
+   ```bash
+   module purge; module load slurm cpu/0.17.3b gcc/10.2.0 openmpi/4.1.3
+   mkdir -p bin results/raw results/known_test results/slurm
+   gcc   -g -Wall -O2 -o bin/sequential src/sequential.c src/folding.c -lm
+   gcc   -g -Wall -O2 -fopenmp -o bin/openmp src/openmp.c src/folding.c -lm
+   mpicc -g -Wall -O2 -o bin/mpi src/mpi.c src/folding.c -lm
+   mpicc -g -Wall -O2 -fopenmp -o bin/hybrid src/hybrid.c src/folding.c -lm
+   ls bin        # should list: hybrid  mpi  openmp  sequential
+   ```
 
-4. *After Both Jobs Finish, Build the Summary Files*
-bash scripts/collect_results.sh
-```
+2. **Test the Known Proteins (run from the project folder)**
+
+   ```bash
+   sbatch scripts/pfold_test_known_seq.sb
+   sbatch scripts/pfold_test_known_par.sb
+   cat results/slurm/pfold_test_known_par.*.txt
+   ```
+
+   Want: `PASS` for openmp, mpi and hybrid. This tells us the parallel version found exactly the same best energy as the sequential version for every protein, and every fold passed the validity check.
+
+3. **Run the Full Experiment on the 64 Proteins**
+
+   ```bash
+   sbatch scripts/pfold_seq.sb
+   sbatch scripts/pfold_par.sb
+   ```
+
+4. **After Both Jobs Finish, Build the Summary Files**
+
+   ```bash
+   bash scripts/collect_results.sh
+   ```
+
 *The Job Scripts:*
 | Script | Runs | Resources/Time Limit | Output Folder |
 |--------|------|----------------------|---------------|
