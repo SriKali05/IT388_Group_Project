@@ -1,6 +1,4 @@
-# IT388_Group_Project: Parallel Protein Folding Simulation
-*Srida Kalidindi, Srinath Shankar, James Strickert*
-==========================================================
+# IT388_Group_Project: Parallel Protein Folding Simulation - *Srida Kalidindi, Srinath Shankar, James Strickert* -
 
 **Project Overview**:
 =====================
